@@ -1,19 +1,19 @@
 name: COA Address Scraper - Platform 3
 
 on:
-  # 1. Automatic background run every 30 minutes
+  # 1. Automatic background run every 6 hours
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '0 */6 * * *'
 
-  # 2. Manual trigger from GitHub Actions UI with custom options
+  # 2. Manual trigger from GitHub Actions UI (Continuous by default)
   workflow_dispatch:
     inputs:
       limit:
-        description: 'Number of records to scrape in this batch'
-        required: true
-        default: '50'
+        description: 'Optional max records (Leave EMPTY for continuous non-stop run)'
+        required: false
+        default: ''
       delay:
-        description: 'Polite delay between requests (seconds)'
+        description: 'Polite delay between records in seconds'
         required: false
         default: '0.3'
       start_year:
@@ -33,7 +33,7 @@ jobs:
   run-scraper:
     name: Scrape Pending COA Records
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 350  # Up to ~6 hours continuous non-stop execution
 
     steps:
       - name: Checkout Repository
@@ -50,7 +50,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 mysql-connector-python python-dotenv ddddocr Pillow numpy
 
-      - name: Run Sequential Scraper
+      - name: Run Sequential Continuous Scraper
         env:
           USE_REMOTE_API: "true"
           REMOTE_API_URL: ${{ secrets.REMOTE_API_URL }}
@@ -72,9 +72,18 @@ jobs:
           cd "$SCRIPT_DIR"
           echo "Active directory: $(pwd)"
 
-          LIMIT="${{ github.event.inputs.limit || '50' }}"
+          # Base delay argument
           DELAY="${{ github.event.inputs.delay || '0.3' }}"
-          ARGS="--limit $LIMIT --delay $DELAY"
+          ARGS="--delay $DELAY"
+
+          # Only apply limit if a positive number was explicitly entered
+          LIMIT="${{ github.event.inputs.limit }}"
+          if [ -n "$LIMIT" ] && [ "$LIMIT" -gt 0 ] 2>/dev/null; then
+            echo "Running with limit: $LIMIT records"
+            ARGS="$ARGS --limit $LIMIT"
+          else
+            echo "Running in CONTINUOUS MODE (One-by-one until queue is finished or timeout)"
+          fi
 
           if [ -n "${{ github.event.inputs.start_year }}" ]; then
             ARGS="$ARGS --start-year ${{ github.event.inputs.start_year }}"
