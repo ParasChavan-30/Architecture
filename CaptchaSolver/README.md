@@ -1,60 +1,89 @@
-# CAPTCHA Solver — CLI Tool
+# CAPTCHA Solver — Microservice & CLI
 
-A standalone CLI Python script that solves CAPTCHA images using `ddddocr` OCR.  
-**No server, no API framework.** Just call it, it solves, it prints JSON and exits.
+A dual-mode CAPTCHA solver using the `ddddocr` OCR engine:
+1. **HTTP REST API (FastAPI / Uvicorn)** — for Railway, Docker, and Cloudflare Worker integration.
+2. **CLI Utility** — for local command-line tests and scripts.
 
-## Install
+---
+
+## 1. Installation
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
+---
 
-### From a file
+## 2. Running as Web API (Railway / Docker / Local)
+
 ```bash
+# Direct Python:
+python captcha_solver.py
+
+# Or via Uvicorn:
+uvicorn captcha_solver:app --host 0.0.0.0 --port 8000
+```
+
+### Endpoints
+
+#### Health Check
+```http
+GET /health
+```
+Response:
+```json
+{"status": "ok", "service": "ddddocr-captcha-solver", "version": "1.0.0"}
+```
+
+#### Solve CAPTCHA
+```http
+POST /solve
+Content-Type: application/json
+
+{
+  "image_base64": "iVBORw0KGgoAAAANSUhEUgAA..."
+}
+```
+Response (Success):
+```json
+{
+  "success": true,
+  "captcha_text": "Ab3Xy5",
+  "time_ms": 42
+}
+```
+Response (Failure):
+```json
+{
+  "success": false,
+  "error": "OCR failed to solve captcha",
+  "time_ms": 110
+}
+```
+
+---
+
+## 3. Running as CLI Tool
+
+```bash
+# From file:
 python captcha_solver.py --file captcha.png
-```
 
-### From base64 string
-```bash
+# From base64 string:
 python captcha_solver.py --base64 "iVBORw0KGgo..."
-```
 
-### From stdin (pipe)
-```bash
+# From stdin:
 cat captcha.png | python captcha_solver.py --stdin
 ```
 
-## Output
+---
 
-Always prints JSON to stdout:
+## 4. Railway Deployment
 
-```json
-{"success": true, "captcha_text": "Ab3Xy5", "time_ms": 45}
-```
-
-On failure:
-```json
-{"success": false, "error": "OCR failed to solve captcha", "time_ms": 120}
-```
-
-## Calling from other languages
-
-### From PHP
-```php
-$image_base64 = base64_encode(file_get_contents('captcha.png'));
-$cmd = "python captcha_solver.py --base64 " . escapeshellarg($image_base64);
-$output = shell_exec($cmd);
-$result = json_decode($output, true);
-echo $result['captcha_text'];
-```
-
-### From Node.js
-```js
-const { execSync } = require('child_process');
-const fs = require('fs');
-const b64 = fs.readFileSync('captcha.png').toString('base64');
-const result = JSON.parse(execSync(`python captcha_solver.py --base64 "${b64}"`).toString());
-console.log(result.captcha_text);
-```
+1. Push this folder to a GitHub repository.
+2. On Railway (`railway.com`), click **New Project** -> **Deploy from GitHub repo**.
+3. In service **Settings** -> **Networking**, click **Generate Domain**.
+4. Set the domain in your Cloudflare Worker `wrangler.toml`:
+   ```toml
+   CAPTCHA_SOLVER_URL = "https://your-railway-domain.up.railway.app/solve"
+   ```
