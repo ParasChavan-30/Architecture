@@ -51,13 +51,27 @@ jobs:
           pip install requests beautifulsoup4 mysql-connector-python python-dotenv ddddocr Pillow numpy
 
       - name: Run Sequential Scraper
-        working-directory: ./Scraper
         env:
           USE_REMOTE_API: "true"
           REMOTE_API_URL: ${{ secrets.REMOTE_API_URL }}
           REMOTE_API_KEY: ${{ secrets.REMOTE_API_KEY }}
           WORKER_ID: "github_action_platform3"
         run: |
+          echo "=== Locating Scraper in Repository ==="
+          SCRIPT_PATH=$(find . -iname "main.py" | head -n 1)
+
+          if [ -z "$SCRIPT_PATH" ]; then
+            echo "❌ Error: main.py not found in the repository!"
+            echo "Repository contents:"
+            find . -maxdepth 3 -not -path '*/.*'
+            exit 1
+          fi
+
+          echo "✅ Found main.py at: $SCRIPT_PATH"
+          SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
+          cd "$SCRIPT_DIR"
+          echo "Active directory: $(pwd)"
+
           LIMIT="${{ github.event.inputs.limit || '50' }}"
           DELAY="${{ github.event.inputs.delay || '0.3' }}"
           ARGS="--limit $LIMIT --delay $DELAY"
