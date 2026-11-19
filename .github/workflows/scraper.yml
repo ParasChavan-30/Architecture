@@ -1,0 +1,74 @@
+name: COA Address Scraper - Platform 3
+
+on:
+  # 1. Automatic background run every 30 minutes
+  schedule:
+    - cron: '*/30 * * * *'
+
+  # 2. Manual trigger from GitHub Actions UI with custom options
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Number of records to scrape in this batch'
+        required: true
+        default: '50'
+      delay:
+        description: 'Polite delay between requests (seconds)'
+        required: false
+        default: '0.3'
+      start_year:
+        description: 'Filter start year (optional)'
+        required: false
+        default: ''
+      end_year:
+        description: 'Filter end year (optional)'
+        required: false
+        default: ''
+
+concurrency:
+  group: platform-3-scraper
+  cancel-in-progress: false
+
+jobs:
+  run-scraper:
+    name: Scrape Pending COA Records
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 mysql-connector-python python-dotenv ddddocr Pillow numpy
+
+      - name: Run Sequential Scraper
+        working-directory: ./Scraper
+        env:
+          USE_REMOTE_API: "true"
+          REMOTE_API_URL: ${{ secrets.REMOTE_API_URL }}
+          REMOTE_API_KEY: ${{ secrets.REMOTE_API_KEY }}
+          WORKER_ID: "github_action_platform3"
+        run: |
+          LIMIT="${{ github.event.inputs.limit || '50' }}"
+          DELAY="${{ github.event.inputs.delay || '0.3' }}"
+          ARGS="--limit $LIMIT --delay $DELAY"
+
+          if [ -n "${{ github.event.inputs.start_year }}" ]; then
+            ARGS="$ARGS --start-year ${{ github.event.inputs.start_year }}"
+          fi
+
+          if [ -n "${{ github.event.inputs.end_year }}" ]; then
+            ARGS="$ARGS --end-year ${{ github.event.inputs.end_year }}"
+          fi
+
+          echo "Starting Scraper with: python main.py $ARGS"
+          python main.py $ARGS
